@@ -147,7 +147,8 @@ abstract class SchemaManager
 
         // Check if the connection supports the getTables method
         if (method_exists($connection->getSchemaBuilder(), 'getTables')) {
-            $tables = $connection->getSchemaBuilder()->getTables();
+            $database = $connection->getDatabaseName();
+            $tables = $connection->getSchemaBuilder()->getTables($database);
             return collect($tables)->pluck('name')->values()->all();
         }
 
