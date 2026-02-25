@@ -7,8 +7,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Intervention\Image\Constraint;
-use Intervention\Image\Facades\Image;
+use Intervention\Image\Encoders\AutoEncoder;
+use Intervention\Image\ImageManager as InterventionImage;
 use TCG\Voyager\Facades\Voyager;
 
 class VoyagerController extends Controller
@@ -39,30 +39,25 @@ class VoyagerController extends Controller
             abort(403);
         }
 
-        $path = $slug.'/'.date('FY').'/';
+        $path = $slug . '/' . date('mY') . '/';
 
-        $filename = basename($file->getClientOriginalName(), '.'.$file->getClientOriginalExtension());
+        $filename = basename($file->getClientOriginalName(), '.' . $file->getClientOriginalExtension());
         $filename_counter = 1;
 
         // Make sure the filename does not exist, if it does make sure to add a number to the end 1, 2, 3, etc...
-        while (Storage::disk(config('voyager.storage.disk'))->exists($path.$filename.'.'.$file->getClientOriginalExtension())) {
-            $filename = basename($file->getClientOriginalName(), '.'.$file->getClientOriginalExtension()).(string) ($filename_counter++);
+        while (Storage::disk(config('voyager.storage.disk'))->exists($path . $filename . '.' . $file->getClientOriginalExtension())) {
+            $filename = basename($file->getClientOriginalName(), '.' . $file->getClientOriginalExtension()) . (string) ($filename_counter++);
         }
 
-        $fullPath = $path.$filename.'.'.$file->getClientOriginalExtension();
+        $fullPath = $path . $filename . '.' . $file->getClientOriginalExtension();
 
         $ext = $file->guessClientExtension();
 
         if (in_array($ext, ['jpeg', 'jpg', 'png', 'gif'])) {
-            $image = Image::make($file)
-                ->resize($resizeWidth, $resizeHeight, function (Constraint $constraint) {
-                    $constraint->aspectRatio();
-                    $constraint->upsize();
-                });
-            if ($ext !== 'gif') {
-                $image->orientate();
-            }
-            $image->encode($file->getClientOriginalExtension(), 75);
+            $image = InterventionImage::imagick()->read($file)
+                ->resize($resizeWidth, $resizeHeight);
+
+            $image->encode(new AutoEncoder(quality: 75));
 
             // move uploaded file from temp to uploads directory
             if (Storage::disk(config('voyager.storage.disk'))->put($fullPath, (string) $image, 'public')) {
@@ -82,15 +77,16 @@ class VoyagerController extends Controller
     public function assets(Request $request)
     {
         try {
+            /**@disregard undefined type 'League\Flysystem\Util' */
             if (class_exists(\League\Flysystem\Util::class)) {
                 // Flysystem 1.x
-                $path = dirname(__DIR__, 3).'/publishable/assets/'.\League\Flysystem\Util::normalizeRelativePath(urldecode($request->path));
+                /**@disregard undefined type 'League\Flysystem\Util' */
+                $path = dirname(__DIR__, 3) . '/publishable/assets/' . \League\Flysystem\Util::normalizeRelativePath(urldecode($request->path));
             } elseif (class_exists(\League\Flysystem\WhitespacePathNormalizer::class)) {
                 // Flysystem >= 2.x
                 $normalizer = new \League\Flysystem\WhitespacePathNormalizer();
-                $path = dirname(__DIR__, 3).'/publishable/assets/'. $normalizer->normalizePath(urldecode($request->path));
+                $path = dirname(__DIR__, 3) . '/publishable/assets/' . $normalizer->normalizePath(urldecode($request->path));
             }
-            
         } catch (\LogicException $e) {
             abort(404);
         }
@@ -117,7 +113,8 @@ class VoyagerController extends Controller
 
     protected function userCannotUploadImageIn($dataType, $action)
     {
+        /**@disregard undefined method 'user' */
         return auth()->user()->cannot($action, app($dataType->model_name))
-                || $dataType->{$action.'Rows'}->where('type', 'rich_text_box')->count() === 0;
+            || $dataType->{$action . 'Rows'}->where('type', 'rich_text_box')->count() === 0;
     }
 }
