@@ -622,7 +622,7 @@
                     var selected_value = $(this).data('selected');
 
                     var options = $.map(data, function (obj, key) {
-                        return {id: key, text: key};
+                        return {id: obj.field, text: obj.field};
                     });
 
                     $(this).empty().select2({
